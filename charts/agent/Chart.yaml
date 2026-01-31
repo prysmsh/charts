@@ -1,0 +1,13 @@
+apiVersion: v2
+name: agent
+description: Deploys the Prysm agent that brokers infrastructure access sessions.
+type: application
+version: 0.1.0
+appVersion: "latest"
+home: https://prysm.sh
+sources:
+  - https://github.com/prysmsh
+keywords:
+  - prysm
+  - access
+  - security

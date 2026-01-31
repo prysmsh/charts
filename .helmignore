@@ -1,0 +1,8 @@
+# Helm ignore file for prysm charts repository
+# These patterns are ignored when packaging charts using `helm package`
+*.swp
+*.tmp
+.svn
+.git
+.gitignore
+.DS_Store

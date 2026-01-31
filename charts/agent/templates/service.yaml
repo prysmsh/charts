@@ -1,0 +1,36 @@
+{{- if .Values.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agent.fullname" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app.kubernetes.io/name: {{ include "agent.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    {{- with .Values.service.ports.wireguard }}
+    - name: wireguard
+      port: {{ .port }}
+      targetPort: {{ .targetPort }}
+      protocol: {{ default "UDP" .protocol }}
+      {{- if .nodePort }}
+      nodePort: {{ .nodePort }}
+      {{- end }}
+    {{- end }}
+    {{- with .Values.service.ports.http }}
+    - name: http
+      port: {{ .port }}
+      targetPort: {{ .targetPort }}
+      protocol: {{ default "TCP" .protocol }}
+      {{- if .nodePort }}
+      nodePort: {{ .nodePort }}
+      {{- end }}
+    {{- end }}
+{{- end }}
