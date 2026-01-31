@@ -32,13 +32,39 @@ jobs:
         with:
           version: v3.14.0
 
-      - name: Run chart-releaser
-        uses: helm/chart-releaser-action@v1.6.0
+      - name: Package Helm Charts
+        run: |
+          mkdir -p .deploy
+          for chart in charts/*; do
+            if [ -f "$chart/Chart.yaml" ]; then
+              helm package "$chart" --destination .deploy
+            fi
+          done
+
+      - name: Generate index
+        run: |
+          helm repo index .deploy --url https://prysmsh.github.io/charts
+
+      - name: Create releases
         env:
-          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-        with:
-          charts_dir: charts
-          skip_existing: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for package in .deploy/*.tgz; do
+            if [ -f "$package" ]; then
+              chart_name=$(basename "$package" .tgz)
+              version=$(echo "$chart_name" | grep -oP '\d+\.\d+\.\d+$')
+              chart_base=$(echo "$chart_name" | sed "s/-${version}$//")
+              
+              # Check if release exists
+              if ! gh release view "v${version}" &>/dev/null; then
+                gh release create "v${version}" "$package" \
+                  --title "${chart_base} ${version}" \
+                  --notes "Release of ${chart_base} chart version ${version}"
+              else
+                echo "Release v${version} already exists, skipping"
+              fi
+            fi
+          done
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -46,7 +72,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .cr-release-packages
+          path: .deploy
 
       - name: Deploy to GitHub Pages
         id: deployment
