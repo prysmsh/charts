@@ -1,0 +1,278 @@
+image:
+  repository: beehivesec/prysm-agent
+  # Available image variants:
+  # - latest (alias for alpine) - Standard Alpine 3.21 based image (~50MB)
+  # - alpine - Explicitly use Alpine-based image with shell and debug tools
+  # - distroless - Minimal distroless image (~30MB, recommended for production)
+  #
+  # Security: The distroless variant provides:
+  #   - 70% smaller image size
+  #   - No shell or package manager (reduced attack surface)
+  #   - Fewer CVE vulnerabilities (0 vs 0-2 in Alpine)
+  #   - Runs as non-root by default (uid 65532)
+  #
+  # For production, use: distroless
+  # For development/debugging, use: latest or alpine
+  tag: latest
+  pullPolicy: IfNotPresent
+
+controller:
+  kind: DaemonSet
+  replicas: 1
+  strategy:
+    type: Recreate
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+rbac:
+  create: true
+
+configSecret:
+  create: true
+  name: ""
+  existingSecret: ""
+  annotations: {}
+  data:
+    CLUSTER_ID: example-cluster
+    CLUSTER_NAME: "Example Production Cluster"
+    REGION: us-east-1
+    DERP_SERVER: wss://derp.prysm.sh/derp
+    DERP_SERVERS: wss://derp.prysm.sh/derp
+    AGENT_TOKEN: example-agent-token
+    BACKEND_URL: https://api.prysm.sh
+    ORGANIZATION_ID: "1"
+    ENABLE_LOGGING: "true"
+    LOG_INGESTION_URL: ""
+    LOG_PRIVATE_LINK_URL: ""
+    LOG_PRIVATE_LINK_KEY: ""
+    USE_PRIVATE_LINK: "false"
+    DERP_REGION: ""
+    LOG_ENABLE_STREAMING: "true"
+    LOG_BATCH_SIZE: "100"
+    LOG_BATCH_TIMEOUT: "30s"
+    LOG_COLLECTION_INTERVAL: "30s"
+    LOG_MAX_RETRIES: "3"
+    LOG_MAX_MESSAGE_SIZE: "32768"
+    LOG_SOURCES: "pod,event,system"
+    LOG_EXCLUDE_NAMESPACES: "kube-system,kube-public"
+    LOG_LEVELS: "info,warn,error,fatal"
+    AUTO_APPLY_LOG_SINKS: "true"
+    LOG_SINK_SYNC_INTERVAL: "10m"
+    DERP_SKIP_TLS_VERIFY: "false"
+    
+    # Metrics collection configuration
+    ENABLE_METRICS: "true"
+    METRICS_COLLECTION_INTERVAL: "30s"
+    METRICS_BATCH_SIZE: "50"
+    METRICS_BUFFER_SIZE: "500"
+    METRICS_ENABLE_SAMPLING: "true"
+    METRICS_SAMPLE_RATE: "1.0"
+    METRICS_MAX_CONCURRENCY: "3"
+    METRICS_RETENTION_PERIOD: "1h"
+    METRICS_COMPACTION_INTERVAL: "10m"
+    METRICS_ENABLE_SECURITY: "true"
+    METRICS_THREAT_DETECTION: "true"
+    METRICS_ANOMALY_THRESHOLD: "2.0"
+    METRICS_ENABLE_RAY: "false"
+    METRICS_ENABLE_EBPF: "true"
+
+    # Security scanner (Trivy) - container vulnerability scanning
+    SCAN_ENABLED: "true"
+    SCAN_INTERVAL: "1h"
+    SCAN_SEVERITY_THRESHOLD: "MEDIUM"
+    SCAN_NAMESPACES: ""
+    SCAN_EXCLUDE_NAMESPACES: "kube-system,kube-public"
+    SCAN_CACHE_ENABLED: "true"
+    SCAN_CACHE_TTL: "24h"
+    SCAN_CONCURRENT_SCANS: "5"
+    SCAN_TRIVY_PATH: "trivy"
+    SCAN_TRIVY_CACHE_DIR: ""
+    SCAN_SKIP_DB_UPDATE: "false"
+    SCAN_INSECURE: "false"
+    SCAN_TIMEOUT: "5m"
+    SCAN_MAX_CRITICAL: "0"
+    SCAN_MAX_HIGH: "5"
+    SCAN_MAX_MEDIUM: "20"
+
+podAnnotations: {}
+  # Example security annotations:
+  # seccomp.security.alpha.kubernetes.io/pod: runtime/default
+  # container.apparmor.security.beta.kubernetes.io/prysm-agent: runtime/default
+
+podLabels: {}
+  # Example labels:
+  # app.kubernetes.io/version: "1.0.0"
+  # security.policy/tier: high
+
+hostNetwork: true
+hostPID: true
+updateStrategy:
+  type: RollingUpdate
+
+podSecurityContext:
+  fsGroup: 1001
+  runAsNonRoot: true
+  # Note: For distroless image, user is automatically set to 65532 (nonroot)
+  # For alpine image, we use uid 1001 (prysm user)
+
+containerSecurityContext:
+  # Note: Agent requires privileged mode for WireGuard and networking
+  privileged: true
+  capabilities:
+    add:
+      - NET_ADMIN      # Required for WireGuard and iptables
+      - SYS_MODULE     # Required for loading kernel modules
+      - SYS_ADMIN      # Required for namespace operations
+  runAsUser: 1001      # User 'prysm' in alpine, ignored in distroless (uses 65532)
+  runAsGroup: 1001
+  allowPrivilegeEscalation: true
+  # readOnlyRootFilesystem: false  # Agent needs to write to /var/lib/prysm-agent
+
+extraEnv: []
+extraEnvFrom: []
+
+resources:
+  # Recommended resource limits for production
+  # Distroless image uses ~20% less memory than alpine
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  # For distroless in production, consider:
+  # requests:
+  #   cpu: 100m
+  #   memory: 48Mi
+  # limits:
+  #   cpu: 500m
+  #   memory: 192Mi
+
+nodeSelector:
+  kubernetes.io/os: linux
+tolerations:
+  - operator: Exists
+    effect: NoSchedule
+  - operator: Exists
+    effect: NoExecute
+affinity: {}
+
+volumes:
+  wireguardConfig:
+    enabled: true
+    hostPath: /etc/wireguard
+    type: DirectoryOrCreate
+    mountPath: /etc/wireguard
+    readOnly: false
+  modules:
+    enabled: true
+    hostPath: /lib/modules
+    type: Directory
+    mountPath: /lib/modules
+    readOnly: true
+  kubeconfig:
+    enabled: true
+    hostPath: /etc/rancher/k3s/k3s.yaml
+    type: File
+    mountPath: /etc/rancher/k3s/k3s.yaml
+    readOnly: false
+  stateDir:
+    enabled: true
+    type: EmptyDir
+    mountPath: /var/lib/prysm-agent
+    readOnly: false
+    emptyDir: {}
+extraVolumes: []
+extraVolumeMounts: []
+
+service:
+  enabled: true
+  type: ClusterIP
+  annotations: {}
+  ports:
+    wireguard:
+      port: 51820
+      targetPort: 51820
+      protocol: UDP
+      nodePort: null
+    http:
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+      nodePort: null
+
+terminationGracePeriodSeconds: 30
+
+# eBPF Collector Configuration
+ebpfCollector:
+  enabled: true
+  image:
+    repository: beehivesec/prysm-ebpf-collector
+    tag: latest
+    pullPolicy: Always
+  
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  
+  securityContext:
+    privileged: true
+    allowPrivilegeEscalation: true
+    runAsNonRoot: false
+    runAsUser: 0
+  
+  env:
+    PRYSM_ORG_ID: "1"
+    PRYSM_SINK_ID: "1"
+    PRYSM_EBPF_ENDPOINT: "http://log-ingestion-service:8090/api/v1/logs/ingest"
+    HEARTBEAT_INTERVAL: "30s"
+    HTTP_TIMEOUT: "10s"
+    PRYSM_SKIP_SIGNATURE_VERIFICATION: "true"
+    EBPF_RATE_LIMIT_CAPACITY: "10000"
+    EBPF_RATE_LIMIT_REFILL_RATE: "1000"
+  
+  volumes:
+    bpfMaps:
+      enabled: true
+      hostPath: /sys/fs/bpf
+      type: DirectoryOrCreate
+      mountPath: /sys/fs/bpf
+    hostLibModules:
+      enabled: true
+      hostPath: /lib/modules
+      type: Directory
+      mountPath: /lib/modules
+      readOnly: true
+    hostUsrSrc:
+      enabled: true
+      hostPath: /usr/src
+      type: DirectoryOrCreate
+      mountPath: /usr/src
+      readOnly: true
+    proc:
+      enabled: true
+      hostPath: /proc
+      type: Directory
+      mountPath: /host/proc
+      readOnly: true
+    auditLogs:
+      enabled: true
+      hostPath: /var/log/prysm
+      type: DirectoryOrCreate
+      mountPath: /var/log
+    tmp:
+      enabled: true
+      emptyDir:
+        sizeLimit: 100Mi
+      mountPath: /tmp

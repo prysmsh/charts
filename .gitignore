@@ -1,0 +1,20 @@
+# Helm
+*.tgz
+dist/
+.deploy/
+.cr-release-packages/
+.cr-index/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+test-output/

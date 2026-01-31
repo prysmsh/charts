@@ -1,0 +1,180 @@
+{{- if .Values.ebpfCollector.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "agent.fullname" . }}-ebpf
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+    component: ebpf-collector
+spec:
+  selector:
+    matchLabels:
+      {{- include "agent.selectorLabels" . | nindent 6 }}
+      component: ebpf-collector
+  template:
+    metadata:
+      labels:
+        {{- include "agent.selectorLabels" . | nindent 8 }}
+        component: ebpf-collector
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "agent.serviceAccountName" . }}
+      hostNetwork: false
+      hostPID: false
+      shareProcessNamespace: false
+      
+      securityContext:
+        runAsNonRoot: false
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+        supplementalGroups: []
+      
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      
+      containers:
+      - name: ebpf-collector
+        image: "{{ .Values.ebpfCollector.image.repository }}:{{ .Values.ebpfCollector.image.tag }}"
+        imagePullPolicy: {{ .Values.ebpfCollector.image.pullPolicy }}
+        
+        securityContext:
+          {{- toYaml .Values.ebpfCollector.securityContext | nindent 10 }}
+        
+        resources:
+          {{- toYaml .Values.ebpfCollector.resources | nindent 10 }}
+        
+        env:
+        - name: PRYSM_ORG_ID
+          value: {{ .Values.ebpfCollector.env.PRYSM_ORG_ID | quote }}
+        - name: PRYSM_SINK_ID
+          value: {{ .Values.ebpfCollector.env.PRYSM_SINK_ID | quote }}
+        - name: PRYSM_CLUSTER_ID
+          value: {{ .Values.configSecret.data.CLUSTER_ID | quote }}
+        - name: PRYSM_EBPF_ENDPOINT
+          value: {{ .Values.ebpfCollector.env.PRYSM_EBPF_ENDPOINT | quote }}
+        - name: PRYSM_LOG_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "agent.configSecretName" . }}
+              key: AGENT_TOKEN
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: HEARTBEAT_INTERVAL
+          value: {{ .Values.ebpfCollector.env.HEARTBEAT_INTERVAL | quote }}
+        - name: HTTP_TIMEOUT
+          value: {{ .Values.ebpfCollector.env.HTTP_TIMEOUT | quote }}
+        {{- if .Values.ebpfCollector.env.PRYSM_SKIP_SIGNATURE_VERIFICATION }}
+        - name: PRYSM_SKIP_SIGNATURE_VERIFICATION
+          value: {{ .Values.ebpfCollector.env.PRYSM_SKIP_SIGNATURE_VERIFICATION | quote }}
+        {{- end }}
+        
+        volumeMounts:
+        {{- if .Values.ebpfCollector.volumes.bpfMaps.enabled }}
+        - name: bpf-maps
+          mountPath: {{ .Values.ebpfCollector.volumes.bpfMaps.mountPath }}
+        {{- end }}
+        {{- if .Values.ebpfCollector.volumes.hostLibModules.enabled }}
+        - name: host-lib-modules
+          mountPath: {{ .Values.ebpfCollector.volumes.hostLibModules.mountPath }}
+          readOnly: {{ .Values.ebpfCollector.volumes.hostLibModules.readOnly }}
+        {{- end }}
+        {{- if .Values.ebpfCollector.volumes.hostUsrSrc.enabled }}
+        - name: host-usr-src
+          mountPath: {{ .Values.ebpfCollector.volumes.hostUsrSrc.mountPath }}
+          readOnly: {{ .Values.ebpfCollector.volumes.hostUsrSrc.readOnly }}
+        {{- end }}
+        {{- if .Values.ebpfCollector.volumes.proc.enabled }}
+        - name: proc
+          mountPath: {{ .Values.ebpfCollector.volumes.proc.mountPath }}
+          readOnly: {{ .Values.ebpfCollector.volumes.proc.readOnly }}
+        {{- end }}
+        {{- if .Values.ebpfCollector.volumes.auditLogs.enabled }}
+        - name: audit-logs
+          mountPath: {{ .Values.ebpfCollector.volumes.auditLogs.mountPath }}
+        {{- end }}
+        {{- if .Values.ebpfCollector.volumes.tmp.enabled }}
+        - name: tmp
+          mountPath: {{ .Values.ebpfCollector.volumes.tmp.mountPath }}
+        {{- end }}
+        
+        # Probes disabled for distroless image
+        # livenessProbe:
+        #   exec:
+        #     command:
+        #     - /bin/sh
+        #     - -c
+        #     - "pgrep ebpf-collector"
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 30
+        #   timeoutSeconds: 5
+        #   failureThreshold: 3
+        
+        # readinessProbe:
+        #   exec:
+        #     command:
+        #     - /bin/sh  
+        #     - -c
+        #     - "test -f /tmp/ebpf-ready"
+        #   initialDelaySeconds: 10
+        #   periodSeconds: 10
+        #   timeoutSeconds: 3
+        #   failureThreshold: 3
+      
+      volumes:
+      {{- if .Values.ebpfCollector.volumes.bpfMaps.enabled }}
+      - name: bpf-maps
+        hostPath:
+          path: {{ .Values.ebpfCollector.volumes.bpfMaps.hostPath }}
+          type: {{ .Values.ebpfCollector.volumes.bpfMaps.type }}
+      {{- end }}
+      {{- if .Values.ebpfCollector.volumes.hostLibModules.enabled }}
+      - name: host-lib-modules
+        hostPath:
+          path: {{ .Values.ebpfCollector.volumes.hostLibModules.hostPath }}
+          type: {{ .Values.ebpfCollector.volumes.hostLibModules.type }}
+      {{- end }}
+      {{- if .Values.ebpfCollector.volumes.hostUsrSrc.enabled }}
+      - name: host-usr-src
+        hostPath:
+          path: {{ .Values.ebpfCollector.volumes.hostUsrSrc.hostPath }}
+          type: {{ .Values.ebpfCollector.volumes.hostUsrSrc.type }}
+      {{- end }}
+      {{- if .Values.ebpfCollector.volumes.proc.enabled }}
+      - name: proc
+        hostPath:
+          path: {{ .Values.ebpfCollector.volumes.proc.hostPath }}
+          type: {{ .Values.ebpfCollector.volumes.proc.type }}
+      {{- end }}
+      {{- if .Values.ebpfCollector.volumes.auditLogs.enabled }}
+      - name: audit-logs
+        hostPath:
+          path: {{ .Values.ebpfCollector.volumes.auditLogs.hostPath }}
+          type: {{ .Values.ebpfCollector.volumes.auditLogs.type }}
+      {{- end }}
+      {{- if .Values.ebpfCollector.volumes.tmp.enabled }}
+      - name: tmp
+        emptyDir:
+          {{- toYaml .Values.ebpfCollector.volumes.tmp.emptyDir | nindent 10 }}
+      {{- end }}
+      
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+{{- end }}

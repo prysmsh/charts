@@ -1,0 +1,89 @@
+# Production values for Prysm Agent
+# Use distroless image for maximum security
+
+image:
+  repository: beehivesec/prysm-agent
+  tag: distroless  # Recommended for production
+  pullPolicy: IfNotPresent
+
+# Production-grade resource limits
+resources:
+  requests:
+    cpu: 100m
+    memory: 48Mi
+  limits:
+    cpu: 500m
+    memory: 192Mi
+
+# Security annotations
+podAnnotations:
+  seccomp.security.alpha.kubernetes.io/pod: runtime/default
+  container.apparmor.security.beta.kubernetes.io/prysm-agent: runtime/default
+
+podLabels:
+  app.kubernetes.io/version: "1.0.0"
+  security.policy/tier: high
+  environment: production
+
+# Tolerate production taints
+tolerations:
+  - operator: Exists
+    effect: NoSchedule
+  - operator: Exists
+    effect: NoExecute
+  - key: "workload"
+    operator: "Equal"
+    value: "production"
+    effect: "NoSchedule"
+
+# Production configuration
+configSecret:
+  create: true
+  data:
+    CLUSTER_ID: "prod-cluster"
+    CLUSTER_NAME: "Production Cluster"
+    REGION: "us-east-1"
+    # Set these via --set or external secret management:
+    # AGENT_TOKEN: "tkn_..."
+    BACKEND_URL: "https://api.prysm.sh"
+    ORGANIZATION_ID: "1"
+    
+    # Logging - enable for production
+    ENABLE_LOGGING: "true"
+    LOG_ENABLE_STREAMING: "true"
+    LOG_BATCH_SIZE: "100"
+    LOG_BATCH_TIMEOUT: "30s"
+    LOG_COLLECTION_INTERVAL: "30s"
+    LOG_MAX_RETRIES: "3"
+    LOG_SOURCES: "pod,event,system"
+    LOG_EXCLUDE_NAMESPACES: "kube-system,kube-public"
+    LOG_LEVELS: "info,warn,error,fatal"
+    
+    # Metrics - enable for production
+    ENABLE_METRICS: "true"
+    METRICS_COLLECTION_INTERVAL: "30s"
+    METRICS_ENABLE_SECURITY: "true"
+    METRICS_THREAT_DETECTION: "true"
+    
+    # Security scanning - enabled but with reasonable thresholds
+    SCAN_ENABLED: "true"
+    SCAN_INTERVAL: "4h"  # Less frequent in production
+    SCAN_SEVERITY_THRESHOLD: "HIGH"
+    SCAN_MAX_CRITICAL: "0"
+    SCAN_MAX_HIGH: "3"
+    SCAN_MAX_MEDIUM: "10"
+
+# Enable eBPF collector for enhanced security monitoring
+ebpfCollector:
+  enabled: true
+  image:
+    repository: beehivesec/prysm-ebpf-collector
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 384Mi

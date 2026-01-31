@@ -1,0 +1,60 @@
+# Minimal values for Prysm Agent
+# Bare minimum configuration with distroless image
+
+image:
+  repository: beehivesec/prysm-agent
+  tag: distroless
+  pullPolicy: IfNotPresent
+
+# Minimal resources
+resources:
+  requests:
+    cpu: 50m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+# Essential configuration only
+configSecret:
+  create: true
+  data:
+    CLUSTER_ID: "minimal-cluster"
+    CLUSTER_NAME: "Minimal Cluster"
+    REGION: "us-east-1"
+    # AGENT_TOKEN: Set via --set
+    BACKEND_URL: "https://api.prysm.sh"
+    ORGANIZATION_ID: "1"
+    
+    # Minimal logging
+    ENABLE_LOGGING: "false"
+    
+    # Minimal metrics
+    ENABLE_METRICS: "false"
+    
+    # Disable scanning
+    SCAN_ENABLED: "false"
+
+# Disable eBPF collector
+ebpfCollector:
+  enabled: false
+
+# Minimal volumes - only essential WireGuard
+volumes:
+  wireguardConfig:
+    enabled: true
+    hostPath: /etc/wireguard
+    type: DirectoryOrCreate
+    mountPath: /etc/wireguard
+  modules:
+    enabled: false
+  kubeconfig:
+    enabled: false
+  stateDir:
+    enabled: true
+    type: EmptyDir
+    mountPath: /var/lib/prysm-agent
+
+# Disable service
+service:
+  enabled: false

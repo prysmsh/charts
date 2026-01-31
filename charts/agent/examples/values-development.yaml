@@ -1,0 +1,60 @@
+# Development values for Prysm Agent
+# Use alpine image for debugging capabilities
+
+image:
+  repository: beehivesec/prysm-agent
+  tag: alpine  # Includes shell and debug tools
+  pullPolicy: Always  # Always pull latest in dev
+
+# Lower resource limits for development
+resources:
+  requests:
+    cpu: 50m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+podLabels:
+  environment: development
+  debug: "true"
+
+# Development configuration
+configSecret:
+  create: true
+  data:
+    CLUSTER_ID: "dev-cluster"
+    CLUSTER_NAME: "Development Cluster"
+    REGION: "us-east-1"
+    AGENT_TOKEN: "example-dev-token"  # OK for dev
+    BACKEND_URL: "http://kubeaccess-backend:8080"  # Local backend
+    ORGANIZATION_ID: "1"
+    LOG_LEVEL: "debug"  # Verbose logging for development
+    
+    # Logging - enabled with debug level
+    ENABLE_LOGGING: "true"
+    LOG_ENABLE_STREAMING: "true"
+    LOG_BATCH_SIZE: "10"  # Smaller batches
+    LOG_COLLECTION_INTERVAL: "10s"  # More frequent
+    LOG_SOURCES: "pod,event,system"
+    LOG_LEVELS: "debug,info,warn,error,fatal"
+    
+    # Metrics - enabled
+    ENABLE_METRICS: "true"
+    METRICS_COLLECTION_INTERVAL: "15s"
+    METRICS_ENABLE_SECURITY: "false"  # Disable for dev
+    
+    # Security scanning - frequent for testing
+    SCAN_ENABLED: "true"
+    SCAN_INTERVAL: "30m"
+    SCAN_SEVERITY_THRESHOLD: "MEDIUM"
+    SCAN_CACHE_ENABLED: "true"
+
+# Disable eBPF collector in development
+ebpfCollector:
+  enabled: false
+
+# Development-friendly tolerations
+tolerations:
+  - operator: Exists
+    effect: NoSchedule
