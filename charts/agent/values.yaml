@@ -49,6 +49,11 @@ configSecret:
     BACKEND_URL: https://api.prysm.sh
     ORGANIZATION_ID: "1"
     ENABLE_LOGGING: "true"
+    # Agent deploys and manages a log-collector DaemonSet when LOG_COLLECTOR_MODE=daemonset (see spec/KUBE_LOG_ARCHITECTURE.md)
+    LOG_COLLECTOR_MODE: "daemonset"
+    LOG_COLLECTOR_IMAGE: ""
+    # How often to reconcile the log-collector DaemonSet (e.g. 30s for testing, 5m for production)
+    LOG_COLLECTOR_RECONCILE_INTERVAL: "5m"
     LOG_INGESTION_URL: ""
     LOG_PRIVATE_LINK_URL: ""
     LOG_PRIVATE_LINK_KEY: ""
@@ -100,6 +105,18 @@ configSecret:
     SCAN_MAX_CRITICAL: "0"
     SCAN_MAX_HIGH: "5"
     SCAN_MAX_MEDIUM: "20"
+
+    # ztunnel / Ambient mesh configuration (requires istiod - disable if using custom CA)
+    ZTUNNEL_ENABLED: "false"
+    ZTUNNEL_RECONCILE_INTERVAL: "5m"
+    ZTUNNEL_IMAGE: "docker.io/istio/ztunnel:1.28.3"
+    ZTUNNEL_CNI_IMAGE: "docker.io/istio/install-cni:1.28.3"
+    ZTUNNEL_LOG_LEVEL: "info"
+    
+    # mTLS agent authentication
+    MTLS_BOOTSTRAP_TOKEN: ""
+    MTLS_CERT_PATH: "/var/lib/prysm/mtls"
+    MTLS_SKIP_VERIFY: "false"
 
 podAnnotations: {}
   # Example security annotations:
@@ -189,6 +206,12 @@ volumes:
     mountPath: /var/lib/prysm-agent
     readOnly: false
     emptyDir: {}
+  tmp:
+    enabled: true
+    type: EmptyDir
+    mountPath: /tmp
+    readOnly: false
+    emptyDir: {}
 extraVolumes: []
 extraVolumeMounts: []
 
@@ -233,8 +256,10 @@ ebpfCollector:
     runAsUser: 0
   
   env:
-    PRYSM_ORG_ID: "1"
-    PRYSM_SINK_ID: "1"
+    # PRYSM_ORG_ID and PRYSM_SINK_ID are optional - they can be derived from AGENT_TOKEN
+    # Set these only to override the token-embedded values
+    PRYSM_ORG_ID: ""
+    PRYSM_SINK_ID: ""
     PRYSM_EBPF_ENDPOINT: "http://log-ingestion-service:8090/api/v1/logs/ingest"
     HEARTBEAT_INTERVAL: "30s"
     HTTP_TIMEOUT: "10s"
@@ -276,3 +301,82 @@ ebpfCollector:
       emptyDir:
         sizeLimit: 100Mi
       mountPath: /tmp
+
+# ztunnel / Ambient Mesh Configuration
+# Provides zero-trust mTLS for pod-to-pod traffic without sidecars
+ztunnel:
+  # Enable ztunnel deployment and management (requires istiod - disable if using custom CA)
+  enabled: false
+  
+  # ztunnel DaemonSet image
+  image:
+    repository: docker.io/istio/ztunnel
+    tag: "1.28.3"
+    pullPolicy: IfNotPresent
+  
+  # Istio CNI image (required for traffic interception)
+  cniImage:
+    repository: docker.io/istio/install-cni
+    tag: "1.28.3"
+    pullPolicy: IfNotPresent
+  
+  # Log level for ztunnel (debug, info, warn, error)
+  logLevel: info
+  
+  # Enable Prometheus metrics endpoint
+  enableMetrics: true
+  
+  # Enable access logging for connections
+  enableAccessLog: false
+  
+  # Namespaces to enroll in the mesh (comma-separated, empty = all non-excluded)
+  namespaces: ""
+  
+  # Namespaces to exclude from the mesh (comma-separated)
+  excludeNamespaces: "kube-system,kube-public,istio-system,prysm-system"
+  
+  # Reconciliation interval for ztunnel deployment
+  reconcileInterval: "5m"
+  
+  # ztunnel DaemonSet resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  
+  # CNI DaemonSet resources
+  cniResources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# mTLS Agent Authentication Configuration
+# Enables mutual TLS authentication between agent and control plane
+mtls:
+  # Enable mTLS for control plane communication
+  enabled: false
+  
+  # Bootstrap token for initial certificate exchange (one-time use)
+  # Generate via: prysm admin mtls bootstrap-token --cluster-id <id>
+  bootstrapToken: ""
+  
+  # Path to store mTLS certificates
+  certPath: "/var/lib/prysm/mtls"
+  
+  # Skip TLS verification (development only)
+  skipVerify: false
+
+# Workload Certificate Provider Configuration
+# Provides SPIFFE certificates to ztunnel for workload identity
+workloadCertProvider:
+  # Enable the workload certificate provider
+  enabled: false
+  
+  # Unix socket path for certificate requests
+  socketPath: "/var/run/secrets/workload-spiffe-uds/socket"

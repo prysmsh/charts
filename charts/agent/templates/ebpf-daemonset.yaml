@@ -56,9 +56,9 @@ spec:
         
         env:
         - name: PRYSM_ORG_ID
-          value: {{ .Values.ebpfCollector.env.PRYSM_ORG_ID | quote }}
+          value: {{ .Values.ebpfCollector.env.PRYSM_ORG_ID | default .Values.configSecret.data.ORGANIZATION_ID | default "1" | quote }}
         - name: PRYSM_SINK_ID
-          value: {{ .Values.ebpfCollector.env.PRYSM_SINK_ID | quote }}
+          value: {{ .Values.ebpfCollector.env.PRYSM_SINK_ID | default "1" | quote }}
         - name: PRYSM_CLUSTER_ID
           value: {{ .Values.configSecret.data.CLUSTER_ID | quote }}
         - name: PRYSM_EBPF_ENDPOINT

@@ -1,0 +1,43 @@
+# Log collection as Deployment (no DaemonSet, no host log mounts)
+# Use this when you want the agent to scrape Kube logs via the Kubernetes API
+# without running a DaemonSet or mounting host /var/log.
+#
+# See: spec/KUBE_LOG_ARCHITECTURE.md
+
+controller:
+  kind: Deployment
+  replicas: 1
+  strategy:
+    type: Recreate
+
+# No hostPath for logs; agent uses Kubernetes API (kubectl logs / client-go)
+volumes:
+  wireguardConfig:
+    enabled: false
+  modules:
+    enabled: false
+  kubeconfig:
+    enabled: false
+  stateDir:
+    enabled: true
+    type: EmptyDir
+    mountPath: /var/lib/prysm-agent
+
+# eBPF is node-level and uses host mounts; disable if you only want log scraping
+ebpfCollector:
+  enabled: false
+
+configSecret:
+  create: true
+  data:
+    CLUSTER_ID: "example-cluster"
+    CLUSTER_NAME: "Example Cluster"
+    BACKEND_URL: "https://api.prysm.sh"
+    # AGENT_TOKEN, ORGANIZATION_ID: set via --set or existingSecret
+    ENABLE_LOGGING: "true"
+    LOG_INGESTION_URL: ""
+    LOG_SOURCES: "pod,event,system"
+    LOG_COLLECTION_INTERVAL: "30s"
+    LOG_BATCH_SIZE: "100"
+    ENABLE_METRICS: "true"
+    SCAN_ENABLED: "false"

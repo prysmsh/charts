@@ -95,6 +95,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
+            - name: TMPDIR
+              value: /tmp
             {{- with $extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -116,7 +118,8 @@ spec:
           {{- $wireguardMount := and .Values.volumes.wireguardConfig.enabled .Values.volumes.wireguardConfig.mountPath }}
           {{- $modulesMount := and .Values.volumes.modules.enabled .Values.volumes.modules.mountPath }}
           {{- $kubeconfigMount := and .Values.volumes.kubeconfig.enabled .Values.volumes.kubeconfig.mountPath }}
-          {{- if or $wireguardMount $modulesMount $kubeconfigMount (gt (len $extraVolumeMounts) 0) }}
+          {{- $tmpMount := and .Values.volumes.tmp.enabled .Values.volumes.tmp.mountPath }}
+          {{- if or $wireguardMount $modulesMount $kubeconfigMount $tmpMount (gt (len $extraVolumeMounts) 0) }}
           volumeMounts:
             {{- if $wireguardMount }}
             - name: wireguard-config
@@ -138,6 +141,14 @@ spec:
               mountPath: {{ .Values.volumes.stateDir.mountPath }}
               readOnly: {{ .Values.volumes.stateDir.readOnly | default false }}
             {{- end }}
+            {{- if $tmpMount }}
+            - name: tmp
+              mountPath: {{ .Values.volumes.tmp.mountPath }}
+              readOnly: {{ .Values.volumes.tmp.readOnly | default false }}
+            - name: tmp
+              mountPath: /app/tmp
+              readOnly: {{ .Values.volumes.tmp.readOnly | default false }}
+            {{- end }}
             {{- with $extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -158,7 +169,8 @@ spec:
       {{- $modulesVolume := and .Values.volumes.modules.enabled .Values.volumes.modules.hostPath }}
       {{- $kubeconfigVolume := and .Values.volumes.kubeconfig.enabled .Values.volumes.kubeconfig.hostPath }}
       {{- $stateDirVolume := and .Values.volumes.stateDir.enabled (or (eq (lower (default "" .Values.volumes.stateDir.type)) "emptydir") .Values.volumes.stateDir.hostPath) }}
-      {{- if or $wireguardVolume $modulesVolume $kubeconfigVolume $stateDirVolume (gt (len $extraVolumes) 0) }}
+      {{- $tmpVolume := and .Values.volumes.tmp.enabled (eq (lower (default "" .Values.volumes.tmp.type)) "emptydir") }}
+      {{- if or $wireguardVolume $modulesVolume $kubeconfigVolume $stateDirVolume $tmpVolume (gt (len $extraVolumes) 0) }}
       volumes:
         {{- if $wireguardVolume }}
         - name: wireguard-config
@@ -192,6 +204,15 @@ spec:
             path: {{ .Values.volumes.stateDir.hostPath }}
             type: {{ .Values.volumes.stateDir.type | default "DirectoryOrCreate" }}
           {{- end }}
+        {{- end }}
+        {{- if $tmpVolume }}
+        - name: tmp
+          emptyDir:
+            {{- if .Values.volumes.tmp.emptyDir }}
+            {{- toYaml .Values.volumes.tmp.emptyDir | nindent 12 }}
+            {{- else }}
+            {}
+            {{- end }}
         {{- end }}
         {{- with $extraVolumes }}
         {{- toYaml . | nindent 8 }}
