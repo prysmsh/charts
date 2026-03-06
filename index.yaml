@@ -1,0 +1,20 @@
+apiVersion: v1
+entries:
+  prysm-agent:
+  - apiVersion: v2
+    appVersion: latest
+    created: "2026-03-06T00:29:23.4019835Z"
+    description: Prysm agent for Kubernetes clusters
+    digest: 1373cbf0fef307ec18d2362da5f1d6a4fe6a80167b7fc5a6d63f61176db6e971
+    home: https://prysm.sh
+    maintainers:
+    - email: support@prysm.sh
+      name: prysmsh
+    name: prysm-agent
+    sources:
+    - https://github.com/prysmsh/cli
+    type: application
+    urls:
+    - https://github.com/prysmsh/charts/releases/download/prysm-agent-0.1.0/prysm-agent-0.1.0.tgz
+    version: 0.1.0
+generated: "2026-03-06T00:29:23.401989832Z"
